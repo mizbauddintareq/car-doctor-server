@@ -21,13 +21,13 @@ const client = new MongoClient(uri, {
 function verifyJWT(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
-    res.status(401).send({ message: "Unauthorized User" });
+    return res.status(401).send({ message: "unauthorized access" });
   }
 
   const token = authHeader.split(" ")[1];
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function (err, decoded) {
     if (err) {
-      res.status(401).send({ message: "Unauthorized User" });
+      return res.status(403).send({ message: "Forbidden access" });
     }
     req.decoded = decoded;
     next();
@@ -63,7 +63,7 @@ async function run() {
     });
 
     //   Post order API
-    app.post("/order", async (req, res) => {
+    app.post("/order", verifyJWT, async (req, res) => {
       const query = req.body;
       const order = await ordersCollection.insertOne(query);
       res.send(order);
@@ -71,6 +71,10 @@ async function run() {
 
     //   Get orders API
     app.get("/orders", verifyJWT, async (req, res) => {
+      const decoded = req.decoded;
+      if (decoded.email !== req.query.email) {
+        res.status(401).send({ message: "unauthorized access" });
+      }
       let query = {};
       if (req.query.email) {
         query = {
@@ -83,7 +87,7 @@ async function run() {
     });
 
     // Update order status API
-    app.patch("/order/:id", async (req, res) => {
+    app.patch("/order/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const status = req.body.status;
       const filter = { _id: ObjectId(id) };
@@ -97,7 +101,7 @@ async function run() {
     });
 
     //   Delete order API
-    app.delete("/order/:id", async (req, res) => {
+    app.delete("/order/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
       const result = await ordersCollection.deleteOne(query);
